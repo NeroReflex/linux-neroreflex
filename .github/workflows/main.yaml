@@ -1,0 +1,86 @@
+name: Build Linux Kernel
+
+on:
+  push:
+    tags: '*'
+  workflow_dispatch:
+
+env:
+  PKGDEST: "/tmp/linux"
+  BUILDDIR: "/tmp/build"
+
+jobs:
+  build-kernel:
+    runs-on: ubuntu-22.04
+
+    outputs:
+      full_version: ${{ steps.build-kernel-package.outputs.full_version }}
+    
+    container: 
+      image: archlinux:base-devel
+      volumes:
+        - /usr:/usr-host
+        - /opt:/opt-host
+      options: --privileged
+    steps:
+      - name: Maximize build space
+        run: |
+          df -h
+          rm -rf /usr-host/share/dotnet
+          rm -rf /usr-host/share/swift
+          rm -rf /usr-host/share/java
+          rm -rf /usr-host/local/lib/android
+          rm -rf /opt-host/ghc
+          rm -rf /opt-host/hostedtoolcache
+          rm -rf /opt-host/az
+          df -h
+      - uses: actions/checkout@v3
+      - name: Create build user
+        run: |
+          useradd -m build
+          cp -vR linux /home/build/linux
+          chown -vR build /home/build/linux
+      - name: Set up pacman keyring
+        run: |
+          pacman-key --init
+          pacman-key --populate archlinux
+          mkdir -p /etc/gnupg && echo "auto-key-retrieve" >> /etc/gnupg/gpg.conf
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm flex bc cpio pahole python kmod clang llvm lld ccache
+      - name: Build linux package
+        id: build-kernel-package
+        shell: bash
+        run: |
+          su build bash -c "cd /home/build/linux && MAKEFLAGS=-j$(nproc) makepkg"
+          . /home/build/linux/PKGBUILD
+          full_version=${pkgver}-${pkgrel}
+          echo "full_version=$full_version" >> "$GITHUB_OUTPUT"
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-package
+          path: |
+            ${{ env.PKGDEST }}/*.pkg.tar.zst
+          if-no-files-found: error
+
+  make-release:
+    runs-on: ubuntu-latest
+    needs: [build-kernel]
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: linux-package
+          path: ${{ env.PKGDEST }}
+
+      - name: Make release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: linux-${{needs.build-kernel.outputs.full_version}}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: false
+          prerelease: true
+          fail_on_unmatched_files: true
+          files: |
+            ${{ env.PKGDEST }}/*.pkg.tar.zst
