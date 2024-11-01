@@ -47,7 +47,7 @@ jobs:
           mkdir -p /etc/gnupg && echo "auto-key-retrieve" >> /etc/gnupg/gpg.conf
       - name: Install dependencies
         run: |
-          pacman -Syu --noconfirm flex bc cpio pahole python kmod clang llvm lld ccache
+          pacman -Syu --noconfirm flex bc cpio pahole python kmod clang llvm lld ccache git
       - name: Build linux package
         id: build-kernel-package
         shell: bash
