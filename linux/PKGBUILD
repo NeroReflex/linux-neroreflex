@@ -2,7 +2,7 @@
 # Maintainer: Joaquín I. Aramendía (samsagax) <samsagaxg@gmail.com>
 
 pkgbase=linux-neroreflex-git
-pkgver=6.11.0
+pkgver=6.12.0_rc5
 pkgrel=1
 pkgdesc='My Linux branch'
 url="https://gitlab.com/NeroReflex/linux"
@@ -54,7 +54,7 @@ export CC="ccache clang"
 
 _make() {
   test -s version
-  LLVM=1 make KERNELRELEASE="$(<version)" "$@"
+  make KERNELRELEASE="$(<version)" "$@"
 }
 
 prepare() {
@@ -63,9 +63,9 @@ prepare() {
   echo "Setting version..."
   echo "${pkgbase#linux}" > localversion.10-pkgname
   echo "-$pkgrel" > localversion.20-pkgrel
-  LLVM=1 make defconfig
-  LLVM=1 make -s kernelrelease > version
-  #LLVM=1 make mrproper
+  make defconfig
+  make -s kernelrelease > version
+  #make mrproper
 
   local src
   for src in "${source[@]}"; do
@@ -85,8 +85,10 @@ prepare() {
   echo "Prepared $pkgbase version $(<version)"
 }
 
-version() {
-  LLVM=1 make kernelversion
+pkgver() {
+  cd "linux"
+  local ver=$(make kernelversion | sed 's/-/_/g')
+  echo $ver
 }
 
 build() {
